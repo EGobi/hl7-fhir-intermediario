@@ -1,0 +1,35 @@
+[
+    {
+        "resourceType": "MedicationRequest",
+        "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p><strong>Medication Request</strong></p><p><strong>status</strong>: </p>ad<p><strong>intent</strong>: </p>sad<p><strong>medication</strong>: Enter the RXNorm medication code - Enter the RXNorm medication description</p><p><strong>subject</strong>: Enter the patient display</p><p><strong>authoredOn</strong>:2020-02-20</p><p><strong>requester</strong>:Enter the prescriber display</p><p><strong>dosageInstruction</strong>:Twice a day before main meals</p><div>"
+        },
+        "status": "ad",
+        "intent": "sad",
+        "medicationCodeableConcept": {
+            "coding": [
+                {
+                    "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+                    "code": "Enter the RXNorm medication code",
+                    "display": "Enter the RXNorm medication description"
+                }
+            ],
+            "text": "Enter the RXNorm medication description"
+        },
+        "subject": {
+            "reference": "Patient/Enter the patient id",
+            "display": "Enter the patient display"
+        },
+        "authoredOn": "2020-02-20",
+        "requester": {
+            "reference": "Practitioner/Enter the prescriber id",
+            "display": "Enter the prescriber display"
+        },
+        "dosageInstruction": [
+            {
+                "text": "Twice a day before main meals"
+            }
+        ]
+    }
+]

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Unit 1 - Assignment 1 - Proposed Solution</title>
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <h1>HL7 FHIR Intermediate Course</h1>
+        <h2>
+            Unit 1 - Assignment 1 - Proposed Solution
+        </h2>
+        <h3>
+            Prepare Argo Medication Resource
+        </h3>
+    </header>
+    <div class="main-content">
+        <!-- You only need this form and the form-validation.css -->
+        <form class="form-validation" method="post" action="#">
+            <div class="form-row">
+                <label>
+                    <span>Status</span>
+                    <input type="text" name="status" id="v_status">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Intent</span>
+                    <input type="text" name="intent" id="v_intent">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Patient Id</span>
+                    <input type="text" name="patient_id" id="v_patient_reference" onfocus="this.value=''"
+                        value="Enter the patient id">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Patient Display</span>
+                    <input type="text" name="patient_display" id="v_patient_display" onfocus="this.value=''"
+                        value="Enter the patient display">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Prescriber Id</span>
+                    <input type="text" name="prescriber_id" id="v_prescriber_reference" onfocus="this.value=''"
+                        value="Enter the prescriber id">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Prescriber Display</span>
+                    <input type="text" name="prescriber_display" id="v_prescriber_display" onfocus="this.value=''"
+                        value="Enter the prescriber display">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Medication Code</span>
+                    <input type="text" name="prescription_code" id="v_med_code" onfocus="this.value=''"
+                        value="Enter the RXNorm medication code">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Medication Name</span>
+                    <input type="text" name="prescription_name" id="v_med_name" onfocus="this.value=''"
+                        value="Enter the RXNorm medication description">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Prescription Date</span>
+                    <input type="text" name="prescription_date" id="v_prescription_date" onfocus="this.value=''"
+                        value="YYYY-MM-DD">
+                </label>
+            </div>
+            <div class="form-row">
+                <label>
+                    <span>Dosage Instruction</span>
+                    <input type="text" name="dosage_instruction" id="v_dosage_instruction" onfocus="this.value=''"
+                        value="Twice a day before main meals">
+                </label>
+            </div>
+            <div class="form-row">
+                <button type="button" id="btn_submit" onclick="PrepareRecord()">Prepare Record</button>
+            </div>
+            <div class="form-row">
+                <label type="label" id="result">Result</label>
+            </div>
+        </form>
+    </div>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+</body>
+
+</html>
