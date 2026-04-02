@@ -13,6 +13,7 @@ logger = getLogger(__name__)
 
 class FHIRClientError(Exception):
     """Exceção para erros de serviço."""
+
     pass
 
 
@@ -34,6 +35,7 @@ class Quantity:
 @dataclass(frozen=True)
 class Observation:
     """DTO para o recurso FHIR Observation."""
+
     code: CodeableConcept
     valueQuantity: Quantity
 
@@ -59,10 +61,12 @@ class Observation:
 
             if not any(is_vital_sign_category(category) for category in categories):
                 return None
-            
+
             code_data: Dict[str, Any] = cast(Dict[str, Any], resource.get("code", {}))
             code_text: Any = code_data.get("text", "")
-            value_quantity_data: Dict[str, Any] = cast(Dict[str, Any], resource.get("valueQuantity", {}))
+            value_quantity_data: Dict[str, Any] = cast(
+                Dict[str, Any], resource.get("valueQuantity", {})
+            )
             value_quantity_unit: str = cast(str, value_quantity_data.get("unit", ""))
 
             value_quantity_value = value_quantity_data.get("value")
@@ -70,12 +74,9 @@ class Observation:
                 return None
 
             return cls(
-                code=CodeableConcept(
-                    text=code_text
-                ),
+                code=CodeableConcept(text=code_text),
                 valueQuantity=Quantity(
-                    value=float(value_quantity_value),
-                    unit=value_quantity_unit
+                    value=float(value_quantity_value), unit=value_quantity_unit
                 ),
             )
         except (KeyError, TypeError, ValueError, IndexError) as e:
@@ -84,13 +85,17 @@ class Observation:
 
     def to_line(self) -> str:
         """Formatação para saída em console."""
-        return f"{self.code.text}|{self.valueQuantity.value:.2f} {self.valueQuantity.unit}"
+        return (
+            f"{self.code.text}|{self.valueQuantity.value:.2f} {self.valueQuantity.unit}"
+        )
 
 
 class FHIRClient:
     """Cliente de serviço para recursos FHIR."""
 
-    def __init__(self, base_url: str, resource_type: str, session: Optional[Session] = None):
+    def __init__(
+        self, base_url: str, resource_type: str, session: Optional[Session] = None
+    ):
         self.base_url: str = base_url if base_url.endswith("/") else f"{base_url}/"
         self.resource_type: str = resource_type
         self._session: Session = session if session else Session()
@@ -140,12 +145,11 @@ class FHIRClient:
         entries: List[Any] = cast(List[Dict[str, Any]], data.get("entry", []))
 
         observations = [
-            Observation.from_dict(
-                cast(Dict[str, Any], entry.get("resource"))
-            )
-            for entry in entries if isinstance(entry.get("resource"), dict)
+            Observation.from_dict(cast(Dict[str, Any], entry.get("resource")))
+            for entry in entries
+            if isinstance(entry.get("resource"), dict)
         ]
-        
+
         return [observation for observation in observations if observations is not None]
 
 
@@ -153,7 +157,7 @@ if __name__ == "__main__":
     CONFIG: Final[Dict[str, str]] = {
         "FHIR_ENDPOINT": "http://fhirserver.hl7fundamentals.org/fhir/",
         "RESOURCE_TYPE": "Observation",
-        "TARGET_PATIENT_ID": "X12984"
+        "TARGET_PATIENT_ID": "X12984",
     }
 
     with FHIRClient(CONFIG["FHIR_ENDPOINT"], CONFIG["RESOURCE_TYPE"]) as client:
