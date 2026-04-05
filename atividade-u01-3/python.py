@@ -1,14 +1,15 @@
-from dataclasses import dataclass
-from enum import Enum
-from logging import INFO, basicConfig, getLogger
+from logging import INFO, Logger, basicConfig, getLogger
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 from requests import Response, Session
+from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
-from types import TracebackType
-from typing import Any, Dict, Final, List, Optional, Type, Union, cast
+from typing import Any, Dict, Final, List, Optional, Self, Type
 from urllib.parse import urljoin
+from urllib3.util import Retry
 
 basicConfig(level=INFO, format="%(levelname)s: %(message)s")
-logger = getLogger(__name__)
+logger: Logger = getLogger(__name__)
 
 
 class FHIRClientError(Exception):
@@ -17,159 +18,140 @@ class FHIRClientError(Exception):
     pass
 
 
-class EndpointCategory(str, Enum):
-    VITAL_SIGNS = "vital-signs"
+class FHIRResourceNotFound(FHIRClientError):
+    """Erro levantado se o código 404 for retornado pela requisição."""
+
+    pass
 
 
-@dataclass(frozen=True)
-class CodeableConcept:
+class FHIRBaseModel(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, frozen=True, extra="ignore"
+    )
+
+
+class CodeableConcept(FHIRBaseModel):
     text: str
+    coding: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class Quantity:
+class Quantity(FHIRBaseModel):
     value: float
     unit: str
 
 
-@dataclass(frozen=True)
-class Observation:
+class Observation(FHIRBaseModel):
     """DTO para o recurso FHIR Observation."""
 
+    id: Optional[str] = None
+    status: str
     code: CodeableConcept
-    valueQuantity: Quantity
+    value_quantity: Quantity
+    category: List[CodeableConcept] = Field(default_factory=list)
+    effective_date_time: str
 
+    @field_validator("category", mode="before")
     @classmethod
-    def from_dict(cls, resource: Dict[str, Any]) -> Optional["Observation"]:
-        try:
-            categories: List[Any] = cast(List[Any], resource.get("category", []))
+    def ensure_vital_signs(cls, v: Any) -> Any:
+        """Validador garantidor de observações com a categoria de sinais vitais."""
 
-            def is_vital_sign_category(category: Any) -> bool:
-                if not isinstance(category, dict):
-                    return False
-
-                category_dict: Dict[str, Any] = cast(Dict[str, Any], category)
-                coding: List[Any] = cast(
-                    List[Dict[str, Any]], category_dict.get("coding", [])
-                )
-
-                if not coding or not isinstance(coding[0], dict):
-                    return False
-
-                first_coding: Dict[str, Any] = cast(Dict[str, Any], coding[0])
-                return first_coding.get("code") == EndpointCategory.VITAL_SIGNS.value
-
-            if not any(is_vital_sign_category(category) for category in categories):
-                return None
-
-            code_data: Dict[str, Any] = cast(Dict[str, Any], resource.get("code", {}))
-            code_text: Any = code_data.get("text", "")
-            value_quantity_data: Dict[str, Any] = cast(
-                Dict[str, Any], resource.get("valueQuantity", {})
-            )
-            value_quantity_unit: str = cast(str, value_quantity_data.get("unit", ""))
-
-            value_quantity_value = value_quantity_data.get("value")
-            if value_quantity_value is None:
-                return None
-
-            return cls(
-                code=CodeableConcept(text=code_text),
-                valueQuantity=Quantity(
-                    value=float(value_quantity_value), unit=value_quantity_unit
-                ),
-            )
-        except (KeyError, TypeError, ValueError, IndexError) as e:
-            logger.debug(f"Ignorando recurso com falha: {e}")
-            return None
+        str_v: str = str(v)
+        if "vital-signs" not in str_v:
+            raise ValueError("A observação não está na categoria dos sinais vitais.")
+        return v
 
     def to_line(self) -> str:
         """Formatação para saída em console."""
-        return (
-            f"{self.code.text}|{self.valueQuantity.value:.2f} {self.valueQuantity.unit}"
-        )
+        return f"{self.code.text}|{self.value_quantity.value:.2f} {self.value_quantity.unit}"
 
 
 class FHIRClient:
     """Cliente de serviço para recursos FHIR."""
 
-    def __init__(
-        self, base_url: str, resource_type: str, session: Optional[Session] = None
-    ):
-        self.base_url: str = base_url if base_url.endswith("/") else f"{base_url}/"
-        self.resource_type: str = resource_type
-        self._session: Session = session if session else Session()
+    def __init__(self, base_url: str, timeout: int = 10):
+        suffix: str = "/"
+        self.base_url: str = base_url.rstrip(suffix) + suffix
+        self.timeout: int = timeout
+        self._session: Session = self._build_section()
 
-    def __enter__(self) -> "FHIRClient":
+    def _build_section(self) -> Session:
+        session: Session = Session()
+        status_forcelist: list[int] = [429, 500, 502, 503, 504]
+        max_retries: Retry = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=status_forcelist,
+            raise_on_status=False,
+        )
+        adapter: HTTPAdapter = HTTPAdapter(max_retries=max_retries)
+        prefixes: list[str] = ["http://", "https://"]
+        session.mount(prefixes[0], adapter=adapter)
+        session.mount(prefixes[1], adapter=adapter)
+
+        return session
+
+    def __enter__(self) -> Self:
         """Permite usar a classe como: with FHIRClient(...) as client:"""
         return self
 
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
-        """Garante que a sessão foi fechada."""
-        self.close()
-
-    def close(self) -> None:
-        """Fecha o pool de conexões."""
+    def __exit__(self, exc_type: Optional[Type[BaseException]], *args: Any) -> None:
+        """Garante que a sessão foi fechada e fecha o pool de conexões."""
         self._session.close()
+
+    def get_resources(
+        self, resource_type: str, params: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        url: str = urljoin(self.base_url, resource_type)
+        try:
+            response: Response = self._session.get(url=url, params=params, timeout=self.timeout)
+
+            if response.status_code >= 400:
+                logger.error(f"Erro do servidor FHIR: {response.text}")
+                response.raise_for_status()
+
+            data: Any = response.json()
+            return [
+                item["resource"] for item in data.get("entry", []) if "resource" in item
+            ]
+        except RequestException as e:
+            raise FHIRClientError(f"Connection failed: {e}")
 
     def get_vital_signs(self, patient_id: str) -> List[Observation]:
         """Busca sinais vitais aplicando filtros e ordenação."""
-        params: Dict[str, Union[str, int]] = {
+        params: Dict[str, str] = {
             "patient": patient_id,
             "_sort": "date,code",
-            "category": EndpointCategory.VITAL_SIGNS.value,
+            "category": "vital-signs",
         }
 
-        endpoint: str = urljoin(self.base_url, self.resource_type)
+        raw_resources: List[Dict[str, Any]] = self.get_resources("Observation", params=params)
+        observations = []
 
-        try:
-            logger.info(
-                f"Requisitando recursos do tipo {self.resource_type} para o paciente {patient_id}..."
-            )
-            response: Response = self._session.get(endpoint, params=params, timeout=10)
-            response.raise_for_status()
+        for res in raw_resources:
+            try:
+                observations.append(Observation.model_validate(res))
+            except ValueError as e:
+                logger.warning(f"Pulando recurso {res.get('id')}: {e}")
+                continue
 
-            return self._parse_bundle(response.json())
-
-        except RequestException as e:
-            logger.error(f"Erro na requisição ao servidor: {e}")
-            raise FHIRClientError(f"Erro na requisição ao servidor: {e}")
-
-    def _parse_bundle(self, data: Dict[str, Any]) -> List[Observation]:
-        """Mapper para processar Bundles retornados pelo servidor FHIR."""
-        entries: List[Any] = cast(List[Dict[str, Any]], data.get("entry", []))
-
-        observations = [
-            Observation.from_dict(cast(Dict[str, Any], entry.get("resource")))
-            for entry in entries
-            if isinstance(entry.get("resource"), dict)
-        ]
-
-        return [observation for observation in observations if observations is not None]
+        return observations
 
 
 if __name__ == "__main__":
     CONFIG: Final[Dict[str, str]] = {
-        "FHIR_ENDPOINT": "http://fhirserver.hl7fundamentals.org/fhir/",
-        "RESOURCE_TYPE": "Observation",
-        "TARGET_PATIENT_ID": "X12984",
+        "BASE_URL": "http://fhirserver.hl7fundamentals.org/fhir/",
+        "RESOURCE_URL": "Observation",
+        "PATIENT_ID": "X12984",
+        "SORT_VALUE": "date,code",
     }
 
-    with FHIRClient(CONFIG["FHIR_ENDPOINT"], CONFIG["RESOURCE_TYPE"]) as client:
+    with FHIRClient(CONFIG["BASE_URL"]) as client:
         try:
-            resources = client.get_vital_signs(CONFIG["TARGET_PATIENT_ID"])
+            vital_signs = client.get_vital_signs(CONFIG["PATIENT_ID"])
 
-            print(f"Recursos retornados para o paciente {CONFIG["TARGET_PATIENT_ID"]}:")
-            if not resources:
-                print("Nenhum recurso encontrado.")
-            else:
-                for observation in resources:
-                    print(observation.to_line())
+            print(f"Sinais vitais retornados para o paciente {CONFIG['PATIENT_ID']}:")
+            for obs in vital_signs:
+                print(obs.to_line())
 
         except FHIRClientError as e:
             logger.critical(f"Erro no aplicação: {e}")

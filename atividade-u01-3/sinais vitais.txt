@@ -1,0 +1,21 @@
+Sinais vitais retornados para o paciente X12984:
+Body Weight|88.01 kg
+Body Weight|88.01 kg
+Body Weight|88.01 kg
+Body Mass Index|29.24 kg/m2
+Body Mass Index|29.24 kg/m2
+Body Mass Index|29.24 kg/m2
+Pain severity - 0-10 verbal numeric rating [Score] - Reported|2.81 {score}
+Pain severity - 0-10 verbal numeric rating [Score] - Reported|2.81 {score}
+Pain severity - 0-10 verbal numeric rating [Score] - Reported|2.81 {score}
+Body Height|173.50 cm
+Body Height|173.50 cm
+Body Height|173.50 cm
+Body Height|120.00 cm
+Body Height|120.00 cm
+Body Height|120.00 cm
+Body Height|120.00 cm
+Body Weight|70.00 kg
+Body Weight|91.76 kg
+Body Weight|70.00 kg
+Body Weight|91.76 kg
